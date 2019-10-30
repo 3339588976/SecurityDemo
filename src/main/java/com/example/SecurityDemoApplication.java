@@ -6,7 +6,6 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.web.servlet.ServletRegistrationBean;
 import org.springframework.context.annotation.Bean;
-
 @SpringBootApplication
 @MapperScan("com.example.dao")
 public class SecurityDemoApplication {
@@ -16,7 +15,7 @@ public class SecurityDemoApplication {
     }
 
     /**
-     * 注入验证码Servlet
+                * 注入验证码Servlet
      */
     @Bean
     public ServletRegistrationBean indexServletRegisterBean(){

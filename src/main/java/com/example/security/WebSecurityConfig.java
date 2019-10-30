@@ -4,6 +4,9 @@ import com.example.config.CustomAuthenticationFailureHandler;
 import com.example.config.CustomAuthenticationSuccessHandler;
 import com.example.config.CustomExpireSessionStrategy;
 import com.example.config.CustomPermissionEvaluator;
+import com.example.config.DefaultLogoutSuccessHandler;
+import com.example.smscode.SmsCodeAuthenticationSecurityConfig;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -13,6 +16,8 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.builders.WebSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
+import org.springframework.security.core.session.SessionRegistry;
+import org.springframework.security.core.session.SessionRegistryImpl;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.access.expression.DefaultWebSecurityExpressionHandler;
 import org.springframework.security.web.authentication.rememberme.JdbcTokenRepositoryImpl;
@@ -36,6 +41,12 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
     //注入自定义的认证失败处理类
     @Autowired
     private CustomAuthenticationFailureHandler failureHandler;
+    //注入成功退出登录的处理类
+    @Autowired
+    private DefaultLogoutSuccessHandler logoutSuccessHandler;
+    //注入短信验证码登录方式的配置文件
+    @Autowired
+    private SmsCodeAuthenticationSecurityConfig smsCodeAuthenticationSecurityConfig;
 
     //创建Bean
     @Bean
@@ -53,6 +64,12 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
         return handler;
     }
 
+    //注入Session踢出的Bean
+    @Bean
+    public SessionRegistry sessionRegistry() {
+    	return new SessionRegistryImpl();
+    }
+    
     @Override
     protected void configure(AuthenticationManagerBuilder auth) throws Exception {
         auth.userDetailsService(userDetailsService).passwordEncoder(new PasswordEncoder() {
@@ -70,8 +87,10 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 
     @Override
     protected void configure(HttpSecurity http) throws Exception {
-        http.authorizeRequests()
+        http.apply(smsCodeAuthenticationSecurityConfig)
+        		.and().authorizeRequests()
                 // 如果有允许匿名的url，填在下面
+        		.antMatchers("/sms/**").permitAll()
                .antMatchers("/getVerifyCode").permitAll()
                 .antMatchers("/login/invalid").permitAll()
                 .anyRequest().authenticated()
@@ -79,17 +98,18 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
                 // 设置登陆页
                 .formLogin().loginPage("/login")
                 // 设置登陆成功页- home.html
-                //.defaultSuccessUrl("/success").permitAll()
+                .defaultSuccessUrl("/success").permitAll()
                 //登录失败的url
                 //.failureUrl("/login/error")
                 // 自定义登陆用户名和密码参数，默认为username和password
 //                .usernameParameter("username")
 //                .passwordParameter("password")
                 //.and()
-                .successHandler(successHandler)
-                .failureHandler(failureHandler)
-                //.logout()
+                //.successHandler(successHandler)
+                //.failureHandler(failureHandler)
                 .permitAll()
+                //退出登录
+                .and().logout().logoutSuccessHandler(logoutSuccessHandler)
                 //自动登录
                 .and().rememberMe()
                 //数据库存储自动登录
@@ -98,13 +118,20 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
                 .tokenValiditySeconds(60)
                 .userDetailsService(userDetailsService)
                 //session过时后跳转
-                .and().sessionManagement().invalidSessionUrl("/login/invalid")
+                .and().sessionManagement()
+                //.invalidSessionUrl("/login/invalid")
                 //允许最大登录数
                 .maximumSessions(1)
                 //当达到最大值时，是否保留已登录用户
+                //false,允许第二次登录，踢出旧用户
+                //true，不允许第二次登录
                 .maxSessionsPreventsLogin(false)
                 //当达到最大值时，旧用户被踢出的操作
                 .expiredSessionStrategy(new CustomExpireSessionStrategy())
+                //配置sessionRegistry的Bean
+                //.sessionRegistry(sessionRegistry())
+               
+                
         ;
         // 关闭CSRF跨域
         http.csrf().disable();
